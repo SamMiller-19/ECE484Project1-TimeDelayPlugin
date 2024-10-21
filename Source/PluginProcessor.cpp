@@ -129,7 +129,7 @@ bool ECE484Project1AudioProcessor::isBusesLayoutSupported (const BusesLayout& la
 }
 #endif
 
-void ECE484Project1AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
@@ -166,7 +166,8 @@ bool ECE484Project1AudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* ECE484Project1AudioProcessor::createEditor()
 {
-    return new ECE484Project1AudioProcessorEditor (*this);
+    //return new ECE484Project1AudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -181,6 +182,40 @@ void ECE484Project1AudioProcessor::setStateInformation (const void* data, int si
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+}
+
+//Set the layout of sliders by creating layout
+juce::AudioProcessorValueTreeState::ParameterLayout
+ECE484Project1AudioProcessor::createParamaterLayout() {
+    
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    layout.add(std::make_unique <juce::AudioParameterFloat>(
+        "LFO Freq",
+        "LFO Freq",
+        juce::NormalisableRange<float>(0.0f,10.f,0.1f),
+        0.0f));
+
+    layout.add(std::make_unique <juce::AudioParameterFloat>(
+        "Delay",
+        "Delay",
+        juce::NormalisableRange<float>(0.0f, 1000.f, 10.f), 
+        0.0f));
+
+    layout.add(std::make_unique <juce::AudioParameterFloat>(
+        "Feedforward Gain",
+        "Feedforward Gain",
+        juce::NormalisableRange<float>(0.0f, 1.f, 0.05f),
+        0.0f));
+
+    layout.add(std::make_unique <juce::AudioParameterFloat>(
+        "Feedback Gain",
+        "Feedback Gain",
+        juce::NormalisableRange<float>(0.0f, 1.f, 0.05f), 
+        0.0f));
+
+    return layout;
+
 }
 
 //==============================================================================

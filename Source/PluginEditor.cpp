@@ -33,6 +33,8 @@ void ECE484Project1AudioProcessorEditor::paint (juce::Graphics& g)
     g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
 }
 
+
+
 void ECE484Project1AudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
