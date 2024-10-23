@@ -184,6 +184,17 @@ void ECE484Project1AudioProcessor::setStateInformation (const void* data, int si
     // whose contents will have been created by the getStateInformation() call.
 }
 
+Pluginsettings getPluginSettings(juce::AudioProcessorValueTreeState& layout) {
+
+    Pluginsettings settings;
+    settings.LFOfreq = layout.getRawParameterValue("LFO Freq")->load();
+    settings.Delay = layout.getRawParameterValue("Delay")->load();
+    settings.feedforwardGain = layout.getRawParameterValue("Feedforward Gain")->load();
+    settings.feedbackGain = layout.getRawParameterValue("Feedback Gain")->load();
+    
+    return settings;
+}
+
 //Set the layout of sliders by creating layout
 juce::AudioProcessorValueTreeState::ParameterLayout
 ECE484Project1AudioProcessor::createParamaterLayout() {

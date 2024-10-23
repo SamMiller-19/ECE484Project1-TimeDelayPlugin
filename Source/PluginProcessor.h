@@ -10,6 +10,17 @@
 
 #include <JuceHeader.h>
 
+struct Pluginsettings
+{
+    float LFOfreq{ 0 }; 
+    float Delay{ 0 }; 
+    float feedforwardGain{ 0 }; 
+    float feedbackGain{ 0 };
+};
+
+Pluginsettings getPluginSettings(juce::AudioProcessorValueTreeState& layout);
+
+
 //==============================================================================
 /**
 */
