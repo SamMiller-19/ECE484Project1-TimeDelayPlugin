@@ -9,6 +9,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "DelayLineEffect.h"
 
 struct Pluginsettings
 {
@@ -67,9 +68,16 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout
         createParamaterLayout();
 
-    juce::AudioProcessorValueTreeState processTree{*this, nullptr, "Paramaters", createParamaterLayout()};
+    juce::AudioProcessorValueTreeState layout{*this, nullptr, "Paramaters", createParamaterLayout()};
 
 private:
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ECE484Project1AudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ECE484Project1AudioProcessor)
+
+    /* Here I should declair chains based on the DSP that I'm going to be doing*/
+    using Filter = juce::dsp::IIR::Filter<float>;
+
+    using CutFilter =juce::dsp::ProcessorChain<Filter,Filter,Filter,Filter>
+
+    //Monochain
 };
