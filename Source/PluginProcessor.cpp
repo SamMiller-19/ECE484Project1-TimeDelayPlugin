@@ -154,10 +154,9 @@ void ECE484Project1AudioProcessor::updateCircBuffer(int channel,juce::AudioBuffe
     else {
         delayBuffer.copyFrom(channel, writePosition, buffer, channel, 0, (delayBufferSize - writePosition));
 
-        writePosition += bufferSize;
-        writePosition %= delayBufferSize;
+        
 
-        delayBuffer.copyFrom(channel, 0, buffer, channel, bufferSize - writePosition, writePosition);
+        delayBuffer.copyFrom(channel, 0, buffer, channel, bufferSize - delayBufferSize + writePosition, writePosition);
 
     }
     
@@ -201,22 +200,17 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     
     //Get the current settings from the GUI
     auto CurrentSettings = getPluginSettings(layout);
-    if (CurrentSettings.LFOmag > CurrentSettings.delay) {
-
-        CurrentSettings.LFOmag = CurrentSettings.delay;
-        //Ideally update the slider to reflect this but oh well
-    }
 
     //Convert relavent data to sample time instead of delay time
     double LFOfreqSamples = CurrentSettings.LFOfreq / samplerate;
 
-    double LFOmagSamples = samplerate * CurrentSettings.LFOmag;
+    double LFOmagSamples = samplerate * CurrentSettings.LFOmag/1000;
     double delaySamples = samplerate * CurrentSettings.delay/1000;
     
 
     //temporary sinephase for later
     int tempWritePosition;
-    double tempSinPhase;
+    double tempSinPhase = 0;
 
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
@@ -240,7 +234,7 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
         for (int sample = 0; sample < (buffer.getNumSamples()); sample++) {
             
 
-            double delayedPosition =(double)tempWritePosition - delaySamples + LFOmagSamples * sin(tempSinPhase * LFOmagSamples);
+            double delayedPosition =(double)tempWritePosition - delaySamples - LFOmagSamples + LFOmagSamples * sin(tempSinPhase * LFOfreqSamples);
             
             if (delayedPosition < 0) {
                 //If it's 0 make sure to wrap around
@@ -255,7 +249,7 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
 
             //Now we can calculate the input to the delay signal, note this is actually the input so we just
             //Put it back into the channel Data, the sqrt function is to normalize it so we don't have massive gain
-            inputData[tempWritePosition] += CurrentSettings.feedbackGain * AfterDelay;
+            inputData[tempWritePosition] = (CurrentSettings.feedbackGain * AfterDelay + inputData[tempWritePosition]);
 
             //With this we can now actually Calculate the output signal
             outputData[sample] = CurrentSettings.delayGain * AfterDelay + CurrentSettings.dryGain * inputData[tempWritePosition];
@@ -269,7 +263,8 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
             tempWritePosition++;
             
         }
-        
+        writePosition += bufferSize;
+        writePosition %= delayBufferSize;
         
 
         // ..do something to the data...
@@ -348,7 +343,7 @@ ECE484Project1AudioProcessor::createParamaterLayout() {
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "LFO Magnitude",
         "LFO Magnitude in ms",
-        juce::NormalisableRange<float>(0.0f, 1000.f, 10.f),
+        juce::NormalisableRange<float>(0.0f, 100.f, 1.0f),
         0.0f));
 
     layout.add(std::make_unique <juce::AudioParameterFloat>(
