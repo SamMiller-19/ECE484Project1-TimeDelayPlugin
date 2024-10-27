@@ -95,7 +95,7 @@ private:
     void ECE484Project1AudioProcessor::updateCircBuffer(int channel, juce::AudioBuffer<float>& buffer);
 
     //User Defined function to interpolate between 2 values
-    float readInterpolatedValue(double sample, juce::AudioBuffer<float>& buffer, int channel);
+    float readInterpolatedValue(float sample, juce::AudioBuffer<float>& buffer, int channel);
     
     
     

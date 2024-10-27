@@ -100,11 +100,6 @@ void ECE484Project1AudioProcessor::prepareToPlay (double sampleRate, int samples
     auto delaybuffersize = sampleRate * 2.0;
     delayBuffer.setSize(getTotalNumInputChannels(), (int)delaybuffersize);
 
-    juce::dsp::ProcessSpec spec;
-    spec.maximumBlockSize = samplesPerBlock;
-    spec.numChannels = 1;
-
-    auto CurrentSettings = getPluginSettings(layout);
 
     
 
@@ -146,37 +141,35 @@ void ECE484Project1AudioProcessor::updateCircBuffer(int channel,juce::AudioBuffe
 
     int delayBufferSize = delayBuffer.getNumSamples();
     int bufferSize = buffer.getNumSamples();
+   
 
     if (writePosition + bufferSize < delayBufferSize) {
         delayBuffer.copyFrom(channel, writePosition, buffer, channel,0, bufferSize);
-        writePosition += bufferSize;
     }
     else {
-        delayBuffer.copyFrom(channel, writePosition, buffer, channel, 0, (delayBufferSize - writePosition));
-
-        
-
-        delayBuffer.copyFrom(channel, 0, buffer, channel, bufferSize - delayBufferSize + writePosition, writePosition);
-
+        int toEnd = delayBufferSize - writePosition;
+        int fromStart = bufferSize - toEnd;
+        delayBuffer.copyFrom(channel, writePosition, buffer, channel, 0, toEnd);
+        delayBuffer.copyFrom(channel,0, buffer, channel, toEnd, fromStart);
     }
     
 }
 
 //read back the interpolated value
-float ECE484Project1AudioProcessor::readInterpolatedValue(double sample, juce::AudioBuffer<float>& buffer, int channel) {
+float ECE484Project1AudioProcessor::readInterpolatedValue(float sample, juce::AudioBuffer<float>& buffer, int channel) {
     int bufferSize = buffer.getNumSamples();
-    auto* channelData = delayBuffer.getWritePointer(channel);
+    auto* channelData = delayBuffer.getReadPointer(channel);
     //find the lower whole number
     int whole = trunc(sample);
     //Find the fractional value
-    double frac = sample - whole;
+    float frac = sample - whole;
     float value;
 
     if (whole < bufferSize-1) {
         value = (1 - frac) * channelData[whole] + frac * channelData[whole + 1];
     }
     else {
-        value = (1 - frac) * channelData[whole]+frac * channelData[0];
+        value = (1 - frac) * channelData[whole] + frac * channelData[0];
     }
 
     return value;
@@ -209,8 +202,8 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     
 
     //temporary sinephase for later
-    int tempWritePosition;
-    double tempSinPhase = 0;
+    int tempWritePosition = writePosition;
+    double tempSinPhase = sinphase;
 
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
@@ -223,7 +216,7 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
         //This is the circular buffer that will store all the looped back input data
         auto* inputData =  delayBuffer.getWritePointer(channel);
         //This data will be copied into the circular buffer then will be modified for output
-        auto* outputData = buffer.getWritePointer(channel);
+        
                 
         tempSinPhase = sinphase;
         tempWritePosition = writePosition;
@@ -231,16 +224,23 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
         updateCircBuffer(channel, buffer);
         
 
-        for (int sample = 0; sample < (buffer.getNumSamples()); sample++) {
-            
+        for (int sample = 0; sample < bufferSize; sample++) {
+            float delayedPosition = (float)tempWritePosition;
 
-            double delayedPosition =(double)tempWritePosition - delaySamples - LFOmagSamples + LFOmagSamples * sin(tempSinPhase * LFOfreqSamples);
+            delayedPosition -= delaySamples + LFOmagSamples + LFOmagSamples * sin(tempSinPhase);
+            if (CurrentSettings.delayType == Sine) {
+                float delayedPosition = (float)tempWritePosition;
+            }
+            else{
+                float Randomizer = juce::Random::getSystemRandom().nextFloat();
+                delayedPosition -= delaySamples + 2 * LFOmagSamples * Randomizer;
+            }
             
             if (delayedPosition < 0) {
                 //If it's 0 make sure to wrap around
                 delayedPosition = delayBufferSize + delayedPosition;
             }
-            else if (delayedPosition > delayBufferSize) {
+            else if (delayedPosition >= delayBufferSize) {
                 delayedPosition = delayedPosition - delayBufferSize;
             }
 
@@ -249,32 +249,37 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
 
             //Now we can calculate the input to the delay signal, note this is actually the input so we just
             //Put it back into the channel Data, the sqrt function is to normalize it so we don't have massive gain
-            inputData[tempWritePosition] = (CurrentSettings.feedbackGain * AfterDelay + inputData[tempWritePosition]);
+            inputData[tempWritePosition] = (CurrentSettings.feedbackGain * AfterDelay + inputData[tempWritePosition])
+               /sqrt(1+ CurrentSettings.feedbackGain* CurrentSettings.feedbackGain)
+                ;
 
             //With this we can now actually Calculate the output signal
-            outputData[sample] = CurrentSettings.delayGain * AfterDelay + CurrentSettings.dryGain * inputData[tempWritePosition];
+            auto* outputData = buffer.getWritePointer(channel);
+            outputData[sample] = (CurrentSettings.delayGain * AfterDelay + CurrentSettings.dryGain * inputData[tempWritePosition])
+                /sqrt(CurrentSettings.delayGain* CurrentSettings.delayGain+ CurrentSettings.dryGain* CurrentSettings.dryGain)
+                ;
 
 
             
 
 
-            //Increment Write Position and the samplePeriod
-            tempSinPhase += M_PI * samplePeriod;
+            //Increment Write Position and the samplePeriod phase=2pi*f
+            tempSinPhase += 2 * M_PI * LFOfreqSamples;
             tempWritePosition++;
+            if (tempWritePosition >= delayBufferSize) {
+                tempWritePosition = 0;
+            }
             
         }
-        writePosition += bufferSize;
-        writePosition %= delayBufferSize;
-        
-
-        // ..do something to the data...
     }
     //If we're done the for loop this is the true sinphase, but it should only be updated on the last itteration
+    writePosition += bufferSize;
+    writePosition %= delayBufferSize;
     sinphase = tempSinPhase;
     if (sinphase > 2 * M_PI) {
         sinphase = sinphase - 2 * M_PI;
     }
-
+  
 
 }
 
@@ -343,13 +348,13 @@ ECE484Project1AudioProcessor::createParamaterLayout() {
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "LFO Magnitude",
         "LFO Magnitude in ms",
-        juce::NormalisableRange<float>(0.0f, 100.f, 1.0f),
-        0.0f));
+        juce::NormalisableRange<float>(0.0f, 100.f, 0.2f,0.3f),
+        0.f));
 
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "Delay",
         "Delay in ms",
-        juce::NormalisableRange<float>(0.0f, 1000.f, 10.f), 
+        juce::NormalisableRange<float>(0.0f, 1000.f, 1.f,0.3f), 
         0.0f));
 
     layout.add(std::make_unique <juce::AudioParameterFloat>(
