@@ -7,16 +7,26 @@
 */
 
 #pragma once
+#define _USE_MATH_DEFINES
 
 #include <JuceHeader.h>
 #include "DelayLineEffect.h"
+#include <cmath>
+enum {
+    Sine = 0,
+    Noise = 1
+};
 
 struct Pluginsettings
 {
     float LFOfreq{ 0 }; 
-    float Delay{ 0 }; 
-    float feedforwardGain{ 0 }; 
+    float LFOmag{ 0 };
+    float delay{ 0 }; 
+    float delayGain{ 0 }; 
     float feedbackGain{ 0 };
+    float dryGain{ 0 };
+    bool delayType{ Sine };
+
 };
 
 Pluginsettings getPluginSettings(juce::AudioProcessorValueTreeState& layout);
@@ -75,9 +85,20 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ECE484Project1AudioProcessor)
 
     /* Here I should declair chains based on the DSP that I'm going to be doing*/
-    using Filter = juce::dsp::IIR::Filter<float>;
+    juce::AudioBuffer<float> delayBuffer;
+    int writePosition{ 0 };
 
-    using CutFilter =juce::dsp::ProcessorChain<Filter,Filter,Filter,Filter>
+    //Value to track the phase of the LFO sin wave
+    double sinphase{ 0 };
 
-    //Monochain
+    //Userdefined function for circular buffers
+    void ECE484Project1AudioProcessor::updateCircBuffer(int channel, juce::AudioBuffer<float>& buffer);
+
+    //User Defined function to interpolate between 2 values
+    float readInterpolatedValue(double sample, juce::AudioBuffer<float>& buffer, int channel);
+    
+    
+    
+    
+    
 };
