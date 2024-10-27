@@ -382,7 +382,7 @@ ECE484Project1AudioProcessor::createParamaterLayout() {
     
     layout.add(std::make_unique <juce::AudioParameterBool>
         ("LFO Type",
-            "Randomized Oscilator",
+            "Chorusing",
             0));
         
     return layout;
