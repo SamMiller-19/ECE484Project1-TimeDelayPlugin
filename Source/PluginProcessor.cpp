@@ -95,6 +95,8 @@ void ECE484Project1AudioProcessor::changeProgramName (int index, const juce::Str
 
 void ECE484Project1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+
+
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
     auto delaybuffersize = sampleRate * 2.0;
@@ -216,26 +218,27 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
         //This is the circular buffer that will store all the looped back input data
         auto* inputData =  delayBuffer.getWritePointer(channel);
         //This data will be copied into the circular buffer then will be modified for output
-        
+        // Update the circular buffer, note this updates the write position so we use tempWrite Position instead
+         updateCircBuffer(channel, buffer);
                 
-        tempSinPhase = sinphase;
-        tempWritePosition = writePosition;
-        //Update the circular buffer, note this updates the write position so we use tempWrite Position instead
-        updateCircBuffer(channel, buffer);
-        
 
+        //update the sine phase
+        tempSinPhase = sinphase;
+        //Store a temporary write Position
+        tempWritePosition = writePosition;
         for (int sample = 0; sample < bufferSize; sample++) {
             float delayedPosition = (float)tempWritePosition;
 
-            delayedPosition -= delaySamples + LFOmagSamples + LFOmagSamples * sin(tempSinPhase);
             if (CurrentSettings.delayType == Sine) {
-                float delayedPosition = (float)tempWritePosition;
+                delayedPosition -= delaySamples + LFOmagSamples + LFOmagSamples * sin(tempSinPhase);
             }
-            else{
-                float Randomizer = juce::Random::getSystemRandom().nextFloat();
-                delayedPosition -= delaySamples + 2 * LFOmagSamples * Randomizer;
+            else {
+                float random = juce::Random().nextFloat();
+                delayedPosition -= delaySamples +LFOmagSamples+ LFOmagSamples/2 *( sin(1.01*tempSinPhase)+ sin(-0.99*tempSinPhase) + cos(1.02*tempSinPhase) + cos(-tempSinPhase)+random*0.1);
+                    
             }
-            
+
+
             if (delayedPosition < 0) {
                 //If it's 0 make sure to wrap around
                 delayedPosition = delayBufferSize + delayedPosition;
@@ -250,27 +253,22 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
             //Now we can calculate the input to the delay signal, note this is actually the input so we just
             //Put it back into the channel Data, the sqrt function is to normalize it so we don't have massive gain
             inputData[tempWritePosition] = (CurrentSettings.feedbackGain * AfterDelay + inputData[tempWritePosition])
-               /sqrt(1+ CurrentSettings.feedbackGain* CurrentSettings.feedbackGain)
+                // sqrt(1 + CurrentSettings.feedbackGain * CurrentSettings.feedbackGain)
                 ;
 
             //With this we can now actually Calculate the output signal
             auto* outputData = buffer.getWritePointer(channel);
             outputData[sample] = (CurrentSettings.delayGain * AfterDelay + CurrentSettings.dryGain * inputData[tempWritePosition])
-                /sqrt(CurrentSettings.delayGain* CurrentSettings.delayGain+ CurrentSettings.dryGain* CurrentSettings.dryGain)
+                // sqrt(CurrentSettings.delayGain * CurrentSettings.delayGain + CurrentSettings.dryGain * CurrentSettings.dryGain)
                 ;
-
-
-            
-
-
             //Increment Write Position and the samplePeriod phase=2pi*f
             tempSinPhase += 2 * M_PI * LFOfreqSamples;
             tempWritePosition++;
             if (tempWritePosition >= delayBufferSize) {
                 tempWritePosition = 0;
             }
-            
-        }
+
+        } 
     }
     //If we're done the for loop this is the true sinphase, but it should only be updated on the last itteration
     writePosition += bufferSize;
@@ -279,9 +277,12 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     if (sinphase > 2 * M_PI) {
         sinphase = sinphase - 2 * M_PI;
     }
-  
 
+        
 }
+    
+
+
 
 //==============================================================================
 bool ECE484Project1AudioProcessor::hasEditor() const
@@ -298,15 +299,19 @@ juce::AudioProcessorEditor* ECE484Project1AudioProcessor::createEditor()
 //==============================================================================
 void ECE484Project1AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+
+    auto state = layout.copyState();
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    copyXmlToBinary(*xml, destData);
 }
 
 void ECE484Project1AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+
+    if (xmlState.get() != nullptr)
+        if (xmlState->hasTagName(layout.state.getType()))
+            layout.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
 Pluginsettings getPluginSettings(juce::AudioProcessorValueTreeState& layout) {
@@ -318,7 +323,7 @@ Pluginsettings getPluginSettings(juce::AudioProcessorValueTreeState& layout) {
     settings.delayGain = layout.getRawParameterValue("Delay Gain")->load();
     settings.feedbackGain = layout.getRawParameterValue("Feedback Gain")->load();
     settings.dryGain = layout.getRawParameterValue("Dry Gain")->load();
-    settings.delayType = layout.getParameter("LFO Type");
+    settings.delayType = layout.getRawParameterValue("LFO Type")->load();
 
     
     return settings;
@@ -343,12 +348,12 @@ ECE484Project1AudioProcessor::createParamaterLayout() {
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "LFO Freq",
         "LFO Freq",
-        juce::NormalisableRange<float>(0.0f,10.f,0.1f),
+        juce::NormalisableRange<float>(0.0f,5.f,0.05f),
         0.0f));
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "LFO Magnitude",
         "LFO Magnitude in ms",
-        juce::NormalisableRange<float>(0.0f, 100.f, 0.2f,0.3f),
+        juce::NormalisableRange<float>(0.0f, 100.f, 0.05f,0.3f),
         0.f));
 
     layout.add(std::make_unique <juce::AudioParameterFloat>(
@@ -359,25 +364,25 @@ ECE484Project1AudioProcessor::createParamaterLayout() {
 
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "Delay Gain",
-        "Delay Gain",
-        juce::NormalisableRange<float>(0.0f, 1.f, 0.05f),
+        "Feedforward Gain",
+        juce::NormalisableRange<float>(0.0f, 1.f, 0.01f),
         0.0f));
 
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "Feedback Gain",
         "Feedback Gain",
-        juce::NormalisableRange<float>(0.0f, 1.f, 0.05f), 
+        juce::NormalisableRange<float>(0.0f, 1.f, 0.01f), 
         0.0f));
 
     layout.add(std::make_unique <juce::AudioParameterFloat>(
         "Dry Gain",
         "Dry Gain",
-        juce::NormalisableRange<float>(0.0f, 1.f, 0.05f),
+        juce::NormalisableRange<float>(0.0f, 1.f, 0.01f),
         0.0f));
     
     layout.add(std::make_unique <juce::AudioParameterBool>
         ("LFO Type",
-            "Check for White Noise",
+            "Randomized Oscilator",
             0));
         
     return layout;
