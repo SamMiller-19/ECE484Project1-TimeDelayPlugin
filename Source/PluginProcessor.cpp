@@ -167,7 +167,7 @@ float ECE484Project1AudioProcessor::readInterpolatedValue(float sample, juce::Au
     float frac = sample - whole;
     float value;
 
-    if (whole < bufferSize-1) {
+    if (whole < bufferSize) {
         value = (1 - frac) * channelData[whole] + frac * channelData[whole + 1];
     }
     else {
@@ -233,8 +233,7 @@ void ECE484Project1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
                 delayedPosition -= delaySamples + LFOmagSamples + LFOmagSamples * sin(tempSinPhase);
             }
             else {
-                float random = juce::Random().nextFloat();
-                delayedPosition -= delaySamples +LFOmagSamples+ LFOmagSamples/2 *( sin(1.01*tempSinPhase)+ sin(-0.99*tempSinPhase) + cos(1.02*tempSinPhase) + cos(-tempSinPhase)+random*0.1);
+                delayedPosition -= delaySamples +LFOmagSamples+ LFOmagSamples/2 *( sin(tempSinPhase)+ sin(-0.9*tempSinPhase) + cos(1.1*tempSinPhase) + cos(-2*tempSinPhase));
                     
             }
 
